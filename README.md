@@ -1,4 +1,4 @@
-# Bleeding-Masking-Algorithm
+# Bleeding Masking Algorithm
 
 This repository contains a demonstration Jupyter notebook for a bleeding-masking algorithm developed for KMTNet images (Shin et al., in preparation). The notebook shows how bleeding-affected pixels are identified and masked, and allows users to compare the generated masks with example KMTNet single-epoch images.
 
