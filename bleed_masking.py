@@ -1,4 +1,4 @@
-def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6,flagval=1):
+def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6, flagval=1):
     """
     Generating a bleeding mask for a KMTNet single-epoch FITS image.
 
