@@ -8,7 +8,7 @@ CCD bleeding occurs when charge gets trapped in a bright pixel and slowly leaks 
 
 ## Contents
 
-- `bleed_github.ipynb`: demonstration notebook
+- `bleeding_masking.ipynb`: demonstration notebook
 - `bleed_masking.py`: masking function used in the notebook
 - `data/`: example FITS images used as input
 
