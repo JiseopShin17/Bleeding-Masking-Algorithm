@@ -1,15 +1,16 @@
-def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6, flagval=1):
+def bleed_masking(datapath, bleeding_thres=50000, BI_thres=500, detect_thres=0.4, CL=6, flagval=1):
     """
     Generating a bleeding mask for a KMTNet single-epoch FITS image.
 
-    This function identifies saturated pixels and traces vertical bleed trails
-    along the detector column direction. For each saturated pixel, it first
-    evaluates whether the source is likely to produce a bleed trail using a
-    bleeding index (BI), defined from the summed pixel values in a fixed 
-    offset range from the saturated pixel. If the BI exceeds the given
-    threshold, the algorithm scans along the column and marks pixels as
-    bleeding until it encounters `CL` consecutive pixels below the detection
-    threshold. For more description for each parameter, see Shin et al. (2026, in prep).
+    This function identifies bleed-generating pixels and traces vertical 
+    bleed trails along the detector column direction. For each potential 
+    bleed-generating pixel, it first evaluates whether the source is likely 
+    to produce a bleed trail using a bleeding index (BI), defined from the 
+    summed pixel values in a fixed offset range from the saturated pixel. 
+    If the BI exceeds the given threshold, the algorithm scans along the column 
+    and marks pixels as bleeding until it encounters `CL` consecutive pixels 
+    below the detection threshold. 
+    For more description for each parameter, see Shin et al. (2026, in prep).
 
     The masking direction depends on the chip name in the input filename:
     chips containing "kk" or "nn" are masked downward, while chips containing
@@ -19,18 +20,18 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
     ----------
     datapath : str
         Path to the input FITS image.
-    saturate : float, optional
-        Saturation threshold in ADU used to identify candidate saturated
+    bleeding_thres : float, optional
+        Bleeding threshold in ADU used to identify candidate bleed-generating
         pixels. Default is 50000.
+    BI_thres : float, optional
+        Threshold for the bleeding index (BI). Only candidate bleed-generating 
+        pixels with BI larger than this value are treated as bleeding sources.
+        Default is 500.
     detect_thres : float, optional
         Multiplicative factor applied to the background sigma to define the
         detection threshold:
         `detection_thres = median_background + detect_thres * sigma_background`.
         Default is 0.4.
-    BI_thres : float, optional
-        Threshold for the bleeding index (BI). Only saturated pixels with
-        BI larger than this value are treated as bleeding sources.
-        Default is 500.
     CL : int, optional
         Continuity length. Masking stops when `CL` consecutive pixels fall
         below the signal threshold. Default is 6.
@@ -40,7 +41,7 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
 
     Returns
     -------
-    bpMask : ndarray
+    bleeding_mask : ndarray
         2D mask array with the same shape as the input image, where bleeding
         pixels are marked with `flagval` and all other pixels are 0.
 
@@ -61,11 +62,12 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
     data    = hdul[0].data
     hdr     = hdul[0].header
     leny, lenx = data.shape
-    bpMask = np.zeros_like(data)
+    bleeding_mask = np.zeros_like(data)
     _, med, sig = sigma_clipped_stats(data)
     signal_thres = med + detect_thres * sig
 
     chip    = os.path.basename(datapath)
+
     # Determine the direction of masking based on the chip type
     if ("kk" in chip) or ("nn" in chip):
         direction = 'downward'
@@ -76,10 +78,10 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
 
     for i in range(lenx):
         col = data[:, i]
-        sat_indices = np.where(col > saturate)[0]
+        sat_indices = np.where(col > bleeding_thres)[0]
 
         for y_idx in sat_indices:
-            if bpMask[y_idx, i] == flagval:
+            if bleeding_mask[y_idx, i] == flagval:
                 continue  # Skip already marked pixels
 
             # Calculate the sum of pixel values in the vicinity to determine if there is actual bleeding
@@ -94,7 +96,7 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
                 bpidx = np.sum(data[ystart:yend+1, i])
                 ylength = yend - ystart + 1
                 if bpidx - med * ylength > BI_thres:
-                    bpMask[y_idx, i] = flagval  # Set mask only if the condition is met
+                    bleeding_mask[y_idx, i] = flagval  # Set mask only if the condition is met
                     revert_pixel = 0
 
                     # Define scanning range based on direction
@@ -103,10 +105,10 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
                     # Scan through the column in the specified direction
                     for j in range(range_start, range_end, step):
                         if col[j] > signal_thres:
-                            bpMask[j, i] = flagval
+                            bleeding_mask[j, i] = flagval
                             revert_pixel = 0
                         else:
-                            bpMask[j, i] = flagval
+                            bleeding_mask[j, i] = flagval
                             revert_pixel += 1
 
                         # Stop marking when enough consecutive small values are found
@@ -115,6 +117,6 @@ def bleed_masking(datapath, saturate=50000, BI_thres=500, detect_thres=0.4, CL=6
                                 end_idx = max(j - CL, 0)
                             else:
                                 end_idx = min(j + CL, leny)
-                            bpMask[j:end_idx, i] = 0
+                            bleeding_mask[j:end_idx, i] = 0
                             break
-    return bpMask
+    return bleeding_mask
